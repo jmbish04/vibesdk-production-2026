@@ -24,24 +24,18 @@ interface LoginModalProps {
 
 	// New enhanced interfaces (optional)
 	onEmailLogin?: (credentials: {
-		email: string;
 		password: string;
 	}) => Promise<void>;
 	onOAuthLogin?: (provider: 'google' | 'github', redirectUrl?: string) => void;
-	onRegister?: (data: {
-		email: string;
-		password: string;
-		name?: string;
-	}) => Promise<void>;
 	error?: string | null;
 	onClearError?: () => void;
-	
+
 	// Contextual messaging
 	actionContext?: string; // e.g., "to star this app", "to fork this project"
 	showCloseButton?: boolean;
 }
 
-type AuthMode = 'login' | 'register';
+type AuthMode = 'login';
 
 export function LoginModal({
 	isOpen,
@@ -49,22 +43,18 @@ export function LoginModal({
 	onLogin, // Original OAuth interface
 	onEmailLogin,
 	onOAuthLogin,
-	onRegister,
 	error,
 	onClearError,
 	actionContext,
 	showCloseButton = true,
 }: LoginModalProps) {
 	const { authProviders, hasOAuth, requiresEmailAuth } = useAuth();
-	const [mode, setMode] = useState<AuthMode>('login');
+	const [mode] = useState<AuthMode>('login');
 	const [showPassword, setShowPassword] = useState(false);
 	const [isLoading, setIsLoading] = useState(false);
 
 	// Form state
-	const [email, setEmail] = useState('');
 	const [password, setPassword] = useState('');
-	const [name, setName] = useState('');
-	const [confirmPassword, setConfirmPassword] = useState('');
 
 	// Validation errors
 	const [validationErrors, setValidationErrors] = useState<
@@ -73,15 +63,11 @@ export function LoginModal({
 
 	// Determine if enhanced features are available
 	const hasEmailAuth = requiresEmailAuth && !!onEmailLogin;
-	const hasRegistration = requiresEmailAuth && !!onRegister;
 	const showGitHub = authProviders?.github && hasOAuth;
 	const showGoogle = authProviders?.google && hasOAuth;
 
 	const resetForm = () => {
-		setEmail('');
 		setPassword('');
-		setName('');
-		setConfirmPassword('');
 		setValidationErrors({});
 		setShowPassword(false);
 		if (onClearError) onClearError();
@@ -92,44 +78,14 @@ export function LoginModal({
 		onClose();
 	};
 
-	const switchMode = (newMode: AuthMode) => {
-		setMode(newMode);
-		resetForm();
-		setValidationErrors({});
-		if (onClearError) onClearError();
-	};
-
 	const validateForm = (): boolean => {
 		const errors: Record<string, string> = {};
 
-		// Basic email validation
-		const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-		if (!email.trim()) {
-			errors.email = 'Email is required';
-		} else if (!emailRegex.test(email)) {
-			errors.email = 'Invalid email format';
-		}
-
 		// Basic password validation
 		if (!password) {
-			errors.password = 'Password is required';
+			errors.password = 'Access key is required';
 		} else if (password.length < 8) {
-			errors.password = 'Password must be at least 8 characters';
-		}
-
-		// Additional validation for registration
-		if (mode === 'register') {
-			// Name validation
-			if (!name.trim()) {
-				errors.name = 'Name is required';
-			} else if (name.trim().length < 2) {
-				errors.name = 'Name must be at least 2 characters';
-			}
-
-			// Confirm password validation
-			if (password !== confirmPassword) {
-				errors.confirmPassword = 'Passwords do not match';
-			}
+			errors.password = 'Access key must be at least 8 characters';
 		}
 
 		setValidationErrors(errors);
@@ -143,10 +99,8 @@ export function LoginModal({
 
 		setIsLoading(true);
 		try {
-			if (mode === 'login' && onEmailLogin) {
-				await onEmailLogin({ email, password });
-			} else if (mode === 'register' && onRegister) {
-				await onRegister({ email, password, name: name.trim() });
+			if (onEmailLogin) {
+				await onEmailLogin({ password });
 			}
 			// Don't auto-close here - let the parent handle success/error
 		} catch (err) {
@@ -220,16 +174,12 @@ export function LoginModal({
 									<h2 className="text-2xl font-semibold mb-2">
 										{actionContext
 											? `Sign in ${actionContext}`
-											: hasEmailAuth && mode === 'register'
-											? 'Create an account'
 											: 'Welcome back'}
 									</h2>
 									<p className="text-text-tertiary">
 										{actionContext
 											? 'Authentication required for this action'
-											: hasEmailAuth && mode === 'register'
-											? 'Join to start building amazing applications'
-											: 'Sign in to save your apps and access your workspace'}
+											: 'Enter your access key to sign in'}
 									</p>
 								</div>
 							</div>
@@ -327,46 +277,10 @@ export function LoginModal({
 								{/* Email/Password Form */}
 								{hasEmailAuth && (
 									<form onSubmit={handleSubmit} className="space-y-4">
-										{mode === 'register' && (
-											<div>
-												<input
-													type="text"
-													placeholder="Full name"
-													value={name}
-													onChange={(e) => setName(e.target.value)}
-													className={clsx(
-														'w-full p-3 rounded-lg border bg-background transition-colors',
-														validationErrors.name ? 'border-destructive' : 'border-border focus:border-primary'
-													)}
-													disabled={isLoading}
-												/>
-												{validationErrors.name && (
-													<p className="mt-1 text-sm text-destructive">{validationErrors.name}</p>
-												)}
-											</div>
-										)}
-
-										<div>
-											<input
-												type="email"
-												placeholder="Email address"
-												value={email}
-												onChange={(e) => setEmail(e.target.value)}
-												className={clsx(
-													'w-full p-3 rounded-lg border bg-background transition-colors',
-													validationErrors.email ? 'border-destructive' : 'border-border focus:border-primary'
-												)}
-												disabled={isLoading}
-											/>
-											{validationErrors.email && (
-												<p className="mt-1 text-sm text-destructive">{validationErrors.email}</p>
-											)}
-										</div>
-
 										<div className="relative">
 											<input
 												type={showPassword ? 'text' : 'password'}
-												placeholder="Password"
+												placeholder="Access Key"
 												value={password}
 												onChange={(e) => setPassword(e.target.value)}
 												className={clsx(
@@ -388,35 +302,13 @@ export function LoginModal({
 											)}
 										</div>
 
-										{mode === 'register' && (
-											<div>
-												<input
-													type="password"
-													placeholder="Confirm password"
-													value={confirmPassword}
-													onChange={(e) => setConfirmPassword(e.target.value)}
-													className={clsx(
-														'w-full p-3 rounded-lg border bg-background transition-colors',
-														validationErrors.confirmPassword ? 'border-destructive' : 'border-border focus:border-primary'
-													)}
-													disabled={isLoading}
-												/>
-												{validationErrors.confirmPassword && (
-													<p className="mt-1 text-sm text-destructive">{validationErrors.confirmPassword}</p>
-												)}
-											</div>
-										)}
-
 										<motion.button
 											type="submit"
 											whileTap={{ scale: 0.98 }}
 											disabled={isLoading}
 											className="w-full bg-primary hover:bg-primary/90 text-primary-foreground p-3 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
 										>
-											{isLoading 
-												? (mode === 'register' ? 'Creating account...' : 'Signing in...')
-												: (mode === 'register' ? 'Create account' : 'Sign in')
-											}
+											{isLoading ? 'Signing in...' : 'Sign in'}
 										</motion.button>
 									</form>
 								)}
@@ -424,28 +316,6 @@ export function LoginModal({
 
 							{/* Footer */}
 							<div className="px-6 pb-6 space-y-4">
-								{/* Mode switching (only if registration is available) */}
-								{hasRegistration && hasEmailAuth && (
-									<div className="text-center">
-										<button
-											type="button"
-											onClick={() =>
-												switchMode(
-													mode === 'login'
-														? 'register'
-														: 'login',
-												)
-											}
-											className="text-sm text-text-tertiary hover:text-text-primary transition-colors"
-										>
-											{mode === 'login' 
-												? "Don't have an account? Sign up" 
-												: "Already have an account? Sign in"
-											}
-										</button>
-									</div>
-								)}
-
 								<p className="text-center text-xs text-text-tertiary">
 									By continuing, you agree to our{' '}
 									<a

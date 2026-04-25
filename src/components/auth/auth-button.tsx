@@ -34,7 +34,6 @@ export function AuthButton({ className }: AuthButtonProps) {
 		error,
 		login, // OAuth method
 		loginWithEmail,
-		register,
 		logout,
 		clearError,
 	} = useAuth();
@@ -76,12 +75,6 @@ export function AuthButton({ className }: AuthButtonProps) {
 					onOAuthLogin={(provider) => {
 						login(provider);
 						setShowLoginModal(false);
-					}}
-					onRegister={async (data) => {
-						await register(data);
-						if (!error) {
-							setShowLoginModal(false);
-						}
 					}}
 					error={error}
 					onClearError={clearError}
