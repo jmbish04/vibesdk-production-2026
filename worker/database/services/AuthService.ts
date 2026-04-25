@@ -208,7 +208,7 @@ export class AuthService extends BaseService {
             let user = await this.database
                 .select()
                 .from(schema.users)
-                .where(eq(schema.users.email, this.env.ALLOWED_EMAIL.toLowerCase()))
+                .where(eq(schema.users.email, (this.env.ALLOWED_EMAIL || '').toLowerCase()))
                 .get();
 
             if (!user) {
