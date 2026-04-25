@@ -178,8 +178,9 @@ export class AuthService extends BaseService {
     async login(credentials: LoginCredentials, request: Request): Promise<AuthResult> {
         try {
             // Validate secret key against WEBHOOK_SECRET using constant-time comparison
-            const providedKey = Buffer.from(credentials.password, 'utf8');
-            const expectedKey = Buffer.from(this.env.WEBHOOK_SECRET, 'utf8');
+            const encoder = new TextEncoder();
+            const providedKey = encoder.encode(credentials.password);
+            const expectedKey = encoder.encode(this.env.WEBHOOK_SECRET || '');
 
             // Ensure both buffers are same length to prevent timing leaks
             if (providedKey.length !== expectedKey.length) {
