@@ -177,8 +177,24 @@ export class AuthService extends BaseService {
      */
     async login(credentials: LoginCredentials, request: Request): Promise<AuthResult> {
         try {
-            // Validate secret key against WEBHOOK_SECRET
-            if (credentials.password !== this.env.WEBHOOK_SECRET) {
+            // Validate secret key against WEBHOOK_SECRET using constant-time comparison
+            const providedKey = Buffer.from(credentials.password, 'utf8');
+            const expectedKey = Buffer.from(this.env.WEBHOOK_SECRET, 'utf8');
+
+            // Ensure both buffers are same length to prevent timing leaks
+            if (providedKey.length !== expectedKey.length) {
+                await this.logAuthAttempt('', 'login', false, request);
+                throw new SecurityError(
+                    SecurityErrorType.UNAUTHORIZED,
+                    'Invalid access key',
+                    401
+                );
+            }
+
+            // Use constant-time comparison to prevent timing attacks
+            const isValid = crypto.subtle.timingSafeEqual(providedKey, expectedKey);
+
+            if (!isValid) {
                 await this.logAuthAttempt('', 'login', false, request);
                 throw new SecurityError(
                     SecurityErrorType.UNAUTHORIZED,
