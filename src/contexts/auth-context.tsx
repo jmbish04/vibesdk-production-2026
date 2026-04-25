@@ -239,43 +239,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [navigate, setupTokenRefresh, getIntendedUrl, clearIntendedUrl]);
 
-  // Register new user
-  const register = useCallback(async (data: { email: string; password: string; name?: string }) => {
-    setError(null);
-    setIsLoading(true);
-
-    try {
-      const response = await apiClient.register(data);
-
-      if (response.success && response.data) {
-        setUser({ ...response.data.user, isAnonymous: false } as AuthUser);
-        setToken(null); // Using cookies for authentication
-        setSession({
-          userId: response.data.user.id,
-          email: response.data.user.email,
-          sessionId: response.data.sessionId,
-          expiresAt: response.data.expiresAt,
-        });
-        setupTokenRefresh();
-        
-        // Navigate to intended URL or default to home
-        const intendedUrl = getIntendedUrl();
-        clearIntendedUrl();
-        navigate(intendedUrl || '/');
-      }
-    } catch (error) {
-      console.error('Registration error:', error);
-      if (error instanceof ApiError) {
-        setError(error.message);
-      } else {
-        setError('Connection error. Please try again.');
-      }
-      throw error; // Re-throw to inform caller
-    } finally {
-      setIsLoading(false);
-    }
-  }, [navigate, setupTokenRefresh, getIntendedUrl, clearIntendedUrl]);
-
   // Logout
   const logout = useCallback(async () => {
     try {
@@ -317,7 +280,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     requiresEmailAuth,
     login, // OAuth method with redirect support
     loginWithEmail, // Email/password method
-    register,
     logout,
     refreshUser,
     clearError,
