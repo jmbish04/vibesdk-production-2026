@@ -34,7 +34,6 @@ const logger = createLogger('AuthService');
  * Login credentials
  */
 export interface LoginCredentials {
-    email: string;
     password: string;
 }
 
@@ -174,57 +173,69 @@ export class AuthService extends BaseService {
     }
     
     /**
-     * Login with email and password
+     * Login with secret key (validates against WEBHOOK_SECRET)
      */
     async login(credentials: LoginCredentials, request: Request): Promise<AuthResult> {
         try {
-            // Find user
-            const user = await this.database
+            // Validate secret key against WEBHOOK_SECRET
+            if (credentials.password !== this.env.WEBHOOK_SECRET) {
+                await this.logAuthAttempt('', 'login', false, request);
+                throw new SecurityError(
+                    SecurityErrorType.UNAUTHORIZED,
+                    'Invalid access key',
+                    401
+                );
+            }
+
+            // Find or create user with ALLOWED_EMAIL
+            let user = await this.database
                 .select()
                 .from(schema.users)
-                .where(
-                    and(
-                        eq(schema.users.email, credentials.email.toLowerCase()),
-                        sql`${schema.users.deletedAt} IS NULL`
-                    )
-                )
+                .where(eq(schema.users.email, this.env.ALLOWED_EMAIL.toLowerCase()))
                 .get();
-            
-            if (!user || !user.passwordHash) {
-                await this.logAuthAttempt(credentials.email, 'login', false, request);
+
+            if (!user) {
+                // Auto-provision the user
+                const userId = generateId();
+                const now = new Date();
+
+                await this.database.insert(schema.users).values({
+                    id: userId,
+                    email: this.env.ALLOWED_EMAIL.toLowerCase(),
+                    displayName: 'Admin',
+                    emailVerified: true,
+                    provider: 'email',
+                    providerId: userId,
+                    createdAt: now,
+                    updatedAt: now
+                });
+
+                user = await this.database
+                    .select()
+                    .from(schema.users)
+                    .where(eq(schema.users.id, userId))
+                    .get();
+            }
+
+            if (!user) {
                 throw new SecurityError(
                     SecurityErrorType.UNAUTHORIZED,
-                    'Invalid email or password',
-                    401
+                    'Failed to create user',
+                    500
                 );
             }
-            
-            // Verify password
-            const passwordValid = await this.passwordService.verify(
-                credentials.password,
-                user.passwordHash
-            );
-            
-            if (!passwordValid) {
-                await this.logAuthAttempt(credentials.email, 'login', false, request);
-                throw new SecurityError(
-                    SecurityErrorType.UNAUTHORIZED,
-                    'Invalid email or password',
-                    401
-                );
-            }
-            
+
             // Create session
             const { accessToken, session } = await this.sessionService.createSession(
                 user.id,
                 request
             );
-            
+
             // Log successful attempt
-            await this.logAuthAttempt(credentials.email, 'login', true, request);
-            
-            logger.info('User logged in', { userId: user.id, email: user.email });
-            
+            await this.logAuthAttempt(this.env.ALLOWED_EMAIL, 'login', true, request);
+
+            logger.info('User logged in with secret key', { userId: user.id, email: user.email });
+
             return {
                 user: mapUserResponse(user),
                 accessToken,
@@ -235,7 +246,7 @@ export class AuthService extends BaseService {
             if (error instanceof SecurityError) {
                 throw error;
             }
-            
+
             logger.error('Login error', error);
             throw new SecurityError(
                 SecurityErrorType.UNAUTHORIZED,

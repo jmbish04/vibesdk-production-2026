@@ -30,7 +30,7 @@ interface AuthContextType {
   login: (provider: 'google' | 'github', redirectUrl?: string) => void;
   
   // Email/password login method
-  loginWithEmail: (credentials: { email: string; password: string }) => Promise<void>;
+  loginWithEmail: (credentials: { password: string }) => Promise<void>;
   register: (data: { email: string; password: string; name?: string }) => Promise<void>;
   
   logout: () => Promise<void>;
@@ -202,7 +202,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [setIntendedUrl]);
 
   // Email/password login
-  const loginWithEmail = useCallback(async (credentials: { email: string; password: string }) => {
+  const loginWithEmail = useCallback(async (credentials: { password: string }) => {
     setError(null);
     setIsLoading(true);
 
@@ -219,7 +219,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           expiresAt: response.data.expiresAt,
         });
         setupTokenRefresh();
-        
+
         // Navigate to intended URL or default to home
         const intendedUrl = getIntendedUrl();
         clearIntendedUrl();

@@ -45,51 +45,16 @@ export class AuthController extends BaseController {
      */
     static async register(request: Request, env: Env, _ctx: ExecutionContext, _routeContext: RouteContext): Promise<Response> {
         try {
-            // Check if OAuth providers are configured - if yes, block email/password registration
-            if (AuthController.hasOAuthProviders(env)) {
-                return AuthController.createErrorResponse(
-                    'Email/password registration is not available when OAuth providers are configured. Please use OAuth login instead.',
-                    403
-                );
-            }
-
-            const bodyResult = await AuthController.parseJsonBody(request);
-            if (!bodyResult.success) {
-                return bodyResult.response!;
-            }
-
-            const validatedData = registerSchema.parse(bodyResult.data);
-
-            if (env.ALLOWED_EMAIL && validatedData.email !== env.ALLOWED_EMAIL) {
-                return AuthController.createErrorResponse(
-                    'Email Whitelisting is enabled. Please use the allowed email to register.',
-                    403
-                );
-            }
-            
-            const authService = new AuthService(env);
-            const result = await authService.register(validatedData, request);
-            
-            const response = AuthController.createSuccessResponse(
-                formatAuthResponse(result.user, result.sessionId, result.expiresAt)
+            // Registration is disabled in single-user secret key authentication mode
+            return AuthController.createErrorResponse(
+                'Registration is not available. Users are automatically created upon successful authentication with the access key.',
+                403
             );
-            
-            setSecureAuthCookies(response, {
-                accessToken: result.accessToken,
-                accessTokenExpiry: SessionService.config.sessionTTL
-            });
-            
-            // Rotate CSRF token on successful registration if configured
-            if (CsrfService.defaults.rotateOnAuth) {
-                CsrfService.rotateToken(response);
-            }
-            
-            return response;
         } catch (error) {
             if (error instanceof SecurityError) {
                 return AuthController.createErrorResponse(error.message, error.statusCode);
             }
-            
+
             return AuthController.handleError(error, 'register user');
         }
     }
@@ -100,10 +65,10 @@ export class AuthController extends BaseController {
      */
     static async login(request: Request, env: Env, _ctx: ExecutionContext, _routeContext: RouteContext): Promise<Response> {
         try {
-            // Check if OAuth providers are configured - if yes, block email/password login
+            // Check if OAuth providers are configured - if yes, block secret key login
             if (AuthController.hasOAuthProviders(env)) {
                 return AuthController.createErrorResponse(
-                    'Email/password login is not available when OAuth providers are configured. Please use OAuth login instead.',
+                    'Secret key login is not available when OAuth providers are configured. Please use OAuth login instead.',
                     403
                 );
             }
@@ -115,36 +80,29 @@ export class AuthController extends BaseController {
 
             const validatedData = loginSchema.parse(bodyResult.data);
 
-            if (env.ALLOWED_EMAIL && validatedData.email !== env.ALLOWED_EMAIL) {
-                return AuthController.createErrorResponse(
-                    'Email Whitelisting is enabled. Please use the allowed email to login.',
-                    403
-                );
-            }
-            
             const authService = new AuthService(env);
             const result = await authService.login(validatedData, request);
-            
+
             const response = AuthController.createSuccessResponse(
                 formatAuthResponse(result.user, result.sessionId, result.expiresAt)
             );
-            
+
             setSecureAuthCookies(response, {
                 accessToken: result.accessToken,
                 accessTokenExpiry: SessionService.config.sessionTTL
             });
-            
+
             // Rotate CSRF token on successful login if configured
             if (CsrfService.defaults.rotateOnAuth) {
                 CsrfService.rotateToken(response);
             }
-            
+
             return response;
         } catch (error) {
             if (error instanceof SecurityError) {
                 return AuthController.createErrorResponse(error.message, error.statusCode);
             }
-            
+
             return AuthController.handleError(error, 'login user');
         }
     }
@@ -741,15 +699,18 @@ export class AuthController extends BaseController {
         _context: RouteContext
     ): Promise<Response> {
         try {
+            const hasOAuthProviders = !!env.GOOGLE_CLIENT_ID && !!env.GOOGLE_CLIENT_SECRET ||
+                                     !!env.GITHUB_CLIENT_ID && !!env.GITHUB_CLIENT_SECRET;
+
             const providers = {
                 google: !!env.GOOGLE_CLIENT_ID && !!env.GOOGLE_CLIENT_SECRET,
                 github: !!env.GITHUB_CLIENT_ID && !!env.GITHUB_CLIENT_SECRET,
-                email: true
+                email: !hasOAuthProviders
             };
-            
+
             // Include CSRF token with provider info
             const csrfToken = CsrfService.getOrGenerateToken(request, false);
-            
+
             const response = AuthController.createSuccessResponse({
                 providers,
                 hasOAuth: providers.google || providers.github,
@@ -757,11 +718,11 @@ export class AuthController extends BaseController {
                 csrfToken,
                 csrfExpiresIn: Math.floor(CsrfService.defaults.tokenTTL / 1000)
             });
-            
+
             // Set CSRF token cookie with proper expiration
             const maxAge = Math.floor(CsrfService.defaults.tokenTTL / 1000);
             CsrfService.setTokenCookie(response, csrfToken, maxAge);
-            
+
             return response;
         } catch (error) {
             this.logger.error('Get auth providers error', error);

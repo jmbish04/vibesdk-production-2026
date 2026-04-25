@@ -1094,7 +1094,6 @@ class ApiClient {
 	 * Login with email and password
 	 */
 	async loginWithEmail(credentials: {
-		email: string;
 		password: string;
 	}): Promise<ApiResponse<LoginResponseData>> {
 		return this.request<LoginResponseData>('/api/auth/login', {

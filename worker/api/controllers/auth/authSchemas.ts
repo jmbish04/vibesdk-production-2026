@@ -10,8 +10,7 @@ import { commonSchemas } from '../../../utils/inputValidator';
  * Login request schema
  */
 export const loginSchema = z.object({
-  email: commonSchemas.email,
-  password: z.string().min(1, 'Password is required')
+  password: z.string().min(1, 'Access key is required')
 });
 
 export type LoginRequest = z.infer<typeof loginSchema>;
